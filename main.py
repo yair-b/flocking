@@ -3,6 +3,7 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from pathlib import Path
 import plotly.express as px
 import class_leveling
 from sklearn.ensemble import RandomForestClassifier as RFC
@@ -21,11 +22,12 @@ def main(base_dir):
     # class_leveling.show_balance_on_type(class_df, 'Flocking')
     # class_leveling.show_balance_on_type(class_df, 'Grouped')
     # show_correlation(df, class_df)
-    # pred_vel(df, class_df)
-
-    for group_num in range(15287, len(df.index)):
-        show_movement(group_num, df, class_df)
-        # show_scatter(group_num, df, class_df, s=3, color='red')
+    pred_vel(df, class_df)
+    # pred(df, class_df)
+    num = 1000
+    for group_num in range(num * 0, num * 1):
+        # show_movement(group_num, df, class_df)
+        show_scatter(group_num, df, class_df, s=3, color='red')
         pass
 
 
@@ -34,8 +36,23 @@ def pred(df, class_df):
         {key: val for val, key in enumerate(set(class_df.apply(
             lambda x: str(tuple(x)), axis=1)))})
     # class_df = class_df['Flocking']
-    X_train, X_test, Y_train, Y_test = tts(df, class_df, test_size=0.3)
-    model = RFC(n_estimators=50)
+    # f'xVel{i}', f'yVel{i}', f'x{i}', f'y{i}', f'xS{i}',
+    # f'yS{i}', f'xA{i}', f'yA{i}', f'xC{i}', f'yC{i}',
+    # f'nS{i}', f'nAC{i}',
+    tmp = [[
+        f'nS{i}', f'nAC{i}',
+        f'xVel{i}', f'yVel{i}',
+        # f'x{i}', f'y{i}',
+        f'xS{i}', f'yS{i}',
+        f'xA{i}', f'yA{i}',
+        f'xC{i}', f'yC{i}'] for i in range(1, 201)]
+    class_list = []
+    for i_list in tmp:
+        class_list.extend(i_list)
+    df_tmp = df.copy()
+    df.drop(class_list, axis=1, inplace=True)
+    X_train, X_test, Y_train, Y_test = tts(df, class_df, test_size=0.95)
+    model = RFC(n_estimators=100)
     model.fit(X_train, Y_train)
     labels = model.predict(X_test)
     print(CM(labels, Y_test))
@@ -46,15 +63,31 @@ def pred_vel(df, class_df):
     # df = pd.concat([df, class_df], axis=1)
     df = df[list(class_df.apply(lambda x: x.all(), axis=1))]
     # df = df[list(class_df.apply(lambda x: (x[0] == 0) and (x[1] == 1) and (x[2] == 0), axis=1))]
-    tmp = [[f'xVel{i}', f'yVel{i}'] for i in range(1, 201)]
+    tmp = [[f'x{i}', f'y{i}'] for i in range(1, 201)]
     class_list = []
     for i_list in tmp:
         class_list.extend(i_list)
-    Y = df[class_list].copy()
     X = df.drop(class_list, axis=1)
+    Y = df[class_list].copy()
+    '''
+    takex = [f'x{i}' for i in range(1, 201)]
+    takey = [f'y{i}' for i in range(1, 201)]
+    for i, row in Y.iterrows():
+        maxx = Y.loc[i, takex].max()
+        maxy = Y.loc[i, takey].max()
+        Y.loc[i, takex] = Y.loc[i, takex] - maxx
+        Y.loc[i, takey] = Y.loc[i, takey] - maxy
+    takevelx = [f'xVel{i}' for i in range(1, 201)]
+    takevely = [f'yVel{i}' for i in range(1, 201)]
+    for i, row in X.iterrows():
+        maxx = X.loc[i, takevelx].max()
+        maxy = X.loc[i, takevely].max()
+        X.loc[i, takevelx] = X.loc[i, takevelx] / maxx
+        X.loc[i, takevely] = X.loc[i, takevely] / maxy
+    '''
+    '''
     for col_name in X.columns:
         X[col_name] /= X[col_name].mean()
-    '''
     row_even = list(
         pd.Series(range(400)).apply(lambda x: x % 2 == 0))
     row_odd = list(
@@ -70,12 +103,12 @@ def pred_vel(df, class_df):
     '''
 
     X_train, X_test, Y_train, Y_test = tts(X, Y, test_size=0.3)
-    model = MLPR(hidden_layer_sizes=(200, 200), alpha=0.001)
+    model = MLPR(hidden_layer_sizes=(1000, 1000, 400), alpha=10, max_iter=300)
     print('starting...')
     model.fit(X_train, Y_train)
     print(model.score(X_test, Y_test))
     print(model.score(X_train, Y_train))
-    print(((model.predict(X_test) - Y_test).applymap(abs) > 0.5).sum().sum() / (Y_test.shape[1] * Y_test.shape[0]))
+    # print(((model.predict(X_test) - Y_test).applymap(abs) > 0.5).sum().sum() / (Y_test.shape[1] * Y_test.shape[0]))
     pass
 
 
@@ -83,8 +116,11 @@ def show_correlation(df: pd.DataFrame, class_df):
     row_len = df.shape[0] * 200
     col_len = df.shape[1] / 200
     tmp_df = pd.DataFrame(df.values.reshape(int(row_len), int(col_len)))
-    tmp_ts = tmp_df.iloc[:, 2:4].apply(
-        lambda x: np.linalg.norm(x.values),
+    #tmp_ts = tmp_df.iloc[:, 0:2].apply(
+    #    lambda x: np.linalg.norm(x.values),
+    #    axis=1)
+    tmp_ts = tmp_df.iloc[:, 0:2].apply(
+        lambda x: np.arctan2(x[0], x[1]),
         axis=1)
     class_df = class_df.apply(tuple, axis=1)
     class_df = class_df.iloc[np.arange(len(class_df)).repeat(200)]
@@ -169,7 +205,9 @@ def show_movement(group_num, df, classification_df):
     fig.layout.updatemenus[0].buttons[0]. \
         args[1]['transition']['duration'] = 1
     # fig.show()
-    fig.write_html(r"C:\Users\yair\Desktop\data_science\figs\movement\num_" + f'{group_num}.html')
+    out_path = Path(fr"C:\Users\yair\Desktop\data_science\figs\movement\type{tuple(classification)}")
+    out_path.mkdir(parents=True, exist_ok=True)
+    fig.write_html(out_path / f"num_{group_num}.html")
 
 
 # small movement toward velocity
@@ -192,6 +230,8 @@ def move_fract(df: pd.DataFrame, classification_df: pd.DataFrame, time_frame=100
 def show_scatter(group_num, df, class_df, s=4, color='green'):
     res, classification, color_ts = get_one_scene(
         group_num, df, class_df)
+    if (tuple(classification) != (1, 1, 1)):
+        return
     fig = plt.figure(figsize=(15, 10))
     gs = GridSpec(nrows=3, ncols=6, height_ratios=[1.5, 1, 1])
     for num, name in enumerate(['Point', 'Velocity']):
@@ -236,7 +276,9 @@ def show_scatter(group_num, df, class_df, s=4, color='green'):
             size='large',
         )
     print(scenario_tilte)
-    plt.savefig(r"C:\Users\yair\Desktop\data_science\figs\pic\num_" + f'{group_num}')
+    out_path = Path(fr"C:\Users\yair\Desktop\data_science\figs\pic\type{tuple(classification)}")
+    out_path.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path / f"num_{group_num}")
     plt.close(fig)
 
 
